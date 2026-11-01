@@ -1,0 +1,10 @@
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+captures/
+.DS_Store
+functions/node_modules/
+app/google-services.json

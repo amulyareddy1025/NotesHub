@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.NotesHub" parent="Theme.MaterialComponents.Light.DarkActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorSecondary">@color/accent</item>
+    </style>
+</resources>

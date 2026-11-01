@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function isText(v, minLen, maxLen) {
+      return v is string && v.size() >= minLen && v.size() <= maxLen;
+    }
+    function validSemester(s) {
+      return s in ['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4',
+                   'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'];
+    }
+
+    // ---------- notes ----------
+    match /notes/{noteId} {
+
+      // Only logged-in students can browse notes.
+      allow read: if signedIn();
+
+      // Create: must belong to the caller, have valid fields, and the storage path must
+      // be inside the caller's own folder AND contain this document's ID.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['title', 'subject', 'semester', 'fileUrl',
+             'fileName', 'storagePath', 'uploaderId', 'uploaderName', 'timestamp'])
+        && request.resource.data.keys().hasOnly(['title', 'subject', 'semester', 'description',
+             'fileUrl', 'fileName', 'storagePath', 'uploaderId', 'uploaderName',
+             'timestamp', 'updatedAt'])
+        && request.resource.data.uploaderId == request.auth.uid
+        && isText(request.resource.data.title, 1, 100)
+        && isText(request.resource.data.subject, 1, 60)
+        && validSemester(request.resource.data.semester)
+        && isText(request.resource.data.get('description', ''), 0, 500)
+        && isText(request.resource.data.fileName, 1, 200)
+        && isText(request.resource.data.uploaderName, 1, 60)
+        && request.resource.data.fileUrl is string
+        && request.resource.data.storagePath.matches(
+             'notes/' + request.auth.uid + '/' + noteId + '/.*')
+        && request.resource.data.timestamp is int;
+
+      // Update: owner only, and ONLY the editable detail fields may change.
+      allow update: if isOwner(resource.data.uploaderId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['title', 'subject', 'semester', 'description', 'updatedAt'])
+        && isText(request.resource.data.title, 1, 100)
+        && isText(request.resource.data.subject, 1, 60)
+        && validSemester(request.resource.data.semester)
+        && isText(request.resource.data.get('description', ''), 0, 500);
+
+      // Delete: owner only.
+      allow delete: if isOwner(resource.data.uploaderId);
+    }
+
+    // ---------- student profiles ----------
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['name', 'email', 'department',
+             'rollNo', 'createdAt'])
+        && isText(request.resource.data.name, 1, 60)
+        && isText(request.resource.data.get('department', ''), 0, 60)
+        && isText(request.resource.data.get('rollNo', ''), 0, 60);
+      allow delete: if false;
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

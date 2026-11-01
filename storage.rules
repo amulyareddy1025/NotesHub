@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Files live at: notes/{uploaderUid}/{noteId}/{fileName}
+    match /notes/{userId}/{noteId}/{fileName} {
+
+      // Any logged-in student can view / download.
+      allow read: if request.auth != null;
+
+      // Only the owner can upload (or overwrite on retry), max 25 MB, allowed types only.
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType.matches(
+             'application/pdf|application/msword|application/vnd.ms-powerpoint|application/vnd.openxmlformats-officedocument.*|image/.*|text/plain');
+
+      // Only the owner can delete.
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Everything else is closed. (Older uploads from v1.0 used notes/{uid}/{file};
+    // re-upload them or add a temporary read rule if you must keep those.)
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
